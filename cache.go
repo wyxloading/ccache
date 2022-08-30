@@ -3,7 +3,7 @@ package ccache
 
 import (
 	"container/list"
-	"hash/fnv"
+	"github.com/zeebo/xxh3"
 	"sync/atomic"
 	"time"
 )
@@ -26,7 +26,7 @@ type Cache struct {
 	list        *list.List
 	size        int64
 	buckets     []*bucket
-	bucketMask  uint32
+	bucketMask  uint64
 	deletables  chan *Item
 	promotables chan *Item
 	control     chan interface{}
@@ -38,7 +38,7 @@ func New(config *Configuration) *Cache {
 	c := &Cache{
 		list:          list.New(),
 		Configuration: config,
-		bucketMask:    uint32(config.buckets) - 1,
+		bucketMask:    uint64(config.buckets) - 1,
 		buckets:       make([]*bucket, config.buckets),
 		control:       make(chan interface{}),
 	}
@@ -208,9 +208,9 @@ func (c *Cache) set(key string, value interface{}, duration time.Duration, track
 }
 
 func (c *Cache) bucket(key string) *bucket {
-	h := fnv.New32a()
+	h := xxh3.New()
 	h.Write([]byte(key))
-	return c.buckets[h.Sum32()&c.bucketMask]
+	return c.buckets[h.Sum64()&c.bucketMask]
 }
 
 func (c *Cache) promote(item *Item) {
